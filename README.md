@@ -2,8 +2,6 @@
 
 A mobile-first PWA starter for recording Montra Electric trial trips. The front end is a static GitHub Pages site; Google Sheets + Apps Script provide the data layer.
 
-> **Important:** This is a pilot/MVP code package, not a deployed production service. It has been syntax-checked locally, but it has not been connected to your Montra Google Workspace or live Google Sheet. Complete the setup and smoke tests below before field use. The logo files are temporary Montra-inspired placeholders, not official brand assets.
-
 ## Package contents
 
 - `index.html` — mobile-first driver, manager and admin screens.
