@@ -1,119 +1,140 @@
-# MONTRA Trial Management System (TMS)
+# MONTRA Trial Management System — Version 2.0 Pilot
 
-A mobile-first PWA starter for recording Montra Electric trial trips. The front end is a static GitHub Pages site; Google Sheets + Apps Script provide the data layer.
+A mobile-first, installable PWA for Montra Electric field trials. The app is designed for GitHub Pages hosting with Google Sheets + Google Apps Script as the initial backend.
 
-## Package contents
+## What's included
 
-- `index.html` — mobile-first driver, manager and admin screens.
-- `Code.gs` — Apps Script API and database logic.
-- `appsscript.json` — explicitly enables the Google Apps Script V8 runtime (required for `const`, `let` and arrow functions used in `Code.gs`).
-- `manifest.json`, `sw.js` — installable PWA support.
-- `icon-192.png`, `icon-512.png`, `montra-mark.png`, `montra-logo.png` — temporary placeholder assets.
+- `index.html` — mobile-first driver, manager, Value Champion and admin UI.
+- `Code.gs` — Apps Script V8 API and sheet data model.
+- `appsscript.json` — explicitly enables Apps Script V8.
+- `manifest.json`, `sw.js` — installable PWA and app-shell cache.
+- `assets/montra-logo.svg` and `montra-logo.svg` — supplied Montra logo artwork.
+- `montra-logo.png` / `assets/montra-logo.png` — PNG conversion of the supplied SVG for compatibility.
+- `montra-mark.png` — supplied eagle picture mark used as the app icon source.
+- `assets/icon-192.png`, `assets/icon-512.png` — icons derived from the supplied Montra eagle mark.
+- `assets/montra-rhino-tipper.jpg`, `assets/montra-rhino-trailer.png` — supplied vehicle images for future trial-type cards.
+- `icon-192.png`, `icon-512.png` — duplicate root-level icon files for convenience.
+- `tests/logic-tests.js` — local calculation/state tests.
 
-## Trial and trip logic
+## Version 2.0 changes
 
-1. Admin creates a trial, enters the vehicle, customer, location, drivers, materials and targets.
-2. The system creates an individual 8-digit driver PIN for each driver assigned to that trial. The PIN maps directly to that driver and trial.
-3. Driver signs in with the PIN and opens a shift by entering shift, material, opening odometer and opening SOC.
-4. `Loading In` starts the first trip. Each subsequent `Loading In` closes the previous trip and starts the next trip in the same action.
-5. `Loading Out`, `Unloading In` and `Unloading Out` are time-stamped operational events.
-6. `Charging` closes the active trip and asks for SOC before charging. `Complete Charging` asks for SOC after charging. Only charging requires these extra SOC entries.
-7. `Break` closes the active trip. The next `Loading In` starts a new trip.
-8. `Shift End` closes any open trip and asks for closing odometer, closing SOC and material confirmation.
-9. Shift kilometres = closing odometer − opening odometer.
-10. Shift SOC used = opening SOC + all SOC gained while charging − closing SOC.
+1. PINs accept 4–10 digits. Admin enters the PIN when creating a user or assigning a replacement PIN; PINs are stored as salted hashes, not recoverable plaintext.
+2. Admin workspace is divided into Overview, Trials, Users & PINs, Live Operations, Reports and Settings.
+3. Driver interface has English/Hindi toggle, large event buttons, a highlighted next event, trip count, vehicle, shift and material context.
+4. A trial can define up to 8 plant stages with custom In/Out event names and Hindi labels. Optional events can be skipped; a new first-stage In closes the previous trip and starts the next one.
+5. Loading Out and intermediate plant events can be optional. The default flow is Loading In → optional Loading Out → optional Unloading In → required Unloading Out → next Loading In.
+6. If the driver has not punched for 30 minutes, the first plant In / Loading In can be entered as a recovery punch, with an audit flag.
+7. Charging closes the current trip and records the pre-charge SOC. Charging Complete records the post-charge SOC. Charging duration and SOC added are calculated from those timestamps and readings.
+8. Break closes the current trip. Shift End closes any active trip and requires closing odometer and SOC.
+9. Every punch is written to IndexedDB before the GPS request or network sync. GPS is requested in the background. Pending events are queued and synchronised when connectivity returns.
+10. Local session, active shift, recent events and trip state are restored after reopening the PWA on the same device.
+11. Manager dashboard has monthly portfolio cards. Trial detail has Summary, Trip Details, Plant & Movement, Charging & Energy, and Reports & History tabs.
+12. Admin/manager can edit trip records with an audit entry and conclude a trial with outcome, delay reason and battery SOH.
+13. Battery capacity (kWh) is configured at trial creation; battery SOH is entered at trial conclusion. The estimate is: `Energy kWh = SOC percentage-points used / 100 × nominal battery capacity × SOH / 100`; `Efficiency = total km / estimated kWh`.
+14. Excel export is a formatted multi-worksheet Excel SpreadsheetML workbook (`.xls` XML). Open it in Excel and use Save As → `.xlsx` if the modern XLSX format is required.
+15. Backend fields are reserved for per-trip earnings and incentives, but the feature is disabled by default.
 
-The SOC result is a percentage-point consumption estimate, not kWh energy consumption.
+## Branding
 
-## Database tabs
+The supplied brand guide specifies:
 
-`initializeSheets()` creates these tabs and adds missing columns without deleting existing rows:
+- Montra Electric Red: `#D6001C`
+- Steel Grey Dark: `#505050`
+- Black: `#000000`
+- White: `#FFFFFF`
+- Aero headline typeface; Arial / Calibri secondary fallback.
 
-- `Trials`
-- `Users`
-- `Shifts`
-- `Events`
-- `Trips`
-- `Audit`
+The interface uses the supplied logo in a steel-grey logo panel, red primary actions and restrained grey surfaces. The app icon uses the supplied eagle picture mark; the supplied logo artwork is not distorted or recoloured.
 
-Date/time fields are stored as text. `normalizeDate_()` also handles values that Sheets may already have converted to Date objects.
+## Setup — Google Sheets + Apps Script
 
-## Google Apps Script setup
+### 1. Create the database
 
-1. Create a new Google Sheet in the Google account that will own the trial database. Name it `Montra TMS Database`.
-2. Open **Extensions → Apps Script**.
-3. In Apps Script, open **Project Settings** and enable **Show `appsscript.json` manifest file in editor**.
-4. Return to the editor, open `appsscript.json`, and replace its contents with the supplied `appsscript.json` file. This explicitly sets `"runtimeVersion": "V8"`. Save the project.
-5. Open `Code.gs`, replace its contents with the supplied `Code.gs` file, and save.
-6. In Apps Script **Project Settings**, confirm the time zone is **Asia/Kolkata**.
-7. Open **Project Settings → Script Properties → Add script property**. Add:
-   - Property: `ADMIN_PIN`
-   - Value: a strong initial admin PIN of at least 8 characters. Keep it private.
-6. In the Apps Script function selector, run `initializeSheets`. Approve the requested permissions. This creates/migrates the tabs.
-9. Run `setupAdmin` once. It creates the initial admin user named Amritesh using the `ADMIN_PIN` property.
-10. Run `testWriteReadRoundTrip`. It should return `PASS`. It temporarily writes a test Audit row, reads it back, and removes it.
-11. Run `testTripCalculations`. It should return `PASS` for the sample SOC calculation.
-12. Select **Deploy → New deployment → Web app**.
-13. Set **Execute as** to **Me**.
-14. For the pilot only, set **Who has access** to **Anyone**, if your organisation permits it. Deploy and copy the URL ending in `/exec`.
-15. In `index.html`, replace `PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE` in the `API_URL` constant with that `/exec` URL.
-16. If you later change `Code.gs`, use **Deploy → Manage deployments → Edit → New version → Deploy**. This preserves the web app URL.
+1. Create a Google Sheet named `Montra TMS Database`.
+2. Open Extensions → Apps Script.
+3. In Project Settings, enable **Show `appsscript.json` manifest file in editor**.
+4. Replace the manifest with the contents of this package's `appsscript.json` (this sets `runtimeVersion` to `V8`).
+5. Replace `Code.gs` with this package's `Code.gs`.
+6. Save.
 
-If your Montra Google Workspace administrator blocks Apps Script web apps with Anyone access, do not try to bypass that restriction. Ask IT for an approved deployment approach.
+### 2. Initialise sheets and admin
 
-### Important: fix `ParseError: Unexpected token =` when saving Code.gs
+1. Run `initializeSheets()` once. It creates the tabs and adds missing columns without deleting existing rows.
+2. In Apps Script → Project Settings → Script Properties, add `ADMIN_PIN` with a 4–10 digit PIN you choose. For security, prefer 6 or more digits even though 4 is supported.
+3. Run `setupAdmin()` once. It creates or resets the admin account using the Script Property.
+4. Run `testWriteReadRoundTrip()`; expected result: `PASS: Sheet write/read round trip.`
+5. Run `testTripCalculations()`; expected result: `PASS: SOC calculation = 130 percentage points.`
 
-This backend uses JavaScript V8 syntax, including arrow functions (`=>`) and `const`/`let`. If the Apps Script project is using the legacy Rhino runtime, it can report `Unexpected token =` at an arrow function. Install the supplied `appsscript.json` manifest with `"runtimeVersion": "V8"` as described above, save, then paste/save `Code.gs` again. Do not remove the `=` from the arrow function: `=>` is valid JavaScript in V8.
+### 3. Deploy the API
 
-## GitHub Pages setup
+1. Deploy → New deployment → Web app.
+2. Execute as: **Me**.
+3. Access: **Anyone** only if Montra IT/security approves this pilot architecture.
+4. Deploy and copy the Web App URL ending in `/exec`.
 
-1. Sign in to GitHub and create a new repository, for example `montra-trial-management`.
-2. Upload the files in this folder to the repository root. Do not upload the temporary `frontend.js` or `backend-check.js` files if you create them during local syntax checking.
-3. In the repository, open **Settings → Pages**.
-4. Under Build and deployment, choose **Deploy from a branch**.
-5. Select the `main` branch and `/ (root)`, then Save.
-6. Wait for GitHub Pages to publish the site. Open the HTTPS Pages URL on a phone.
-7. On Android, use the browser's Install app / Add to Home Screen option. On iPhone, use **Share → Add to Home Screen**.
-8. Replace `montra-logo.png` and `montra-mark.png` with official approved brand assets when supplied. Keep `icon-192.png` and `icon-512.png` as square PNG icons or replace them with approved exports.
+### 4. Configure the PWA
 
-## First-use flow
+1. Open `index.html` in a code editor.
+2. At the top of the script, replace `PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE` in `API_URL` with the deployed `/exec` URL.
+3. Upload the complete contents of this folder to the root of a GitHub repository, preserving the `assets/` folder.
+4. In GitHub → Settings → Pages, deploy from the main branch and root folder.
+5. Open the resulting `https://<account>.github.io/<repo>/` URL on the phone.
+6. Allow location access if event GPS is required. Install the PWA from the browser's Install / Add to Home Screen option.
 
-1. Open the GitHub Pages URL and sign in using the admin PIN from Script Properties.
-2. In Admin, create a trial and enter one driver name per line.
-3. Copy each generated one-time driver PIN and provide it to the relevant driver. The full PIN is shown only at creation/reset; the database stores a salted hash.
-4. Create manager/utilization/Value Champion users in the access section. For Value Champions, select the trials they may see.
-5. Drivers sign in with their individual PIN, open the shift, record events, and end the shift.
-6. Managers/admins select a trial and date range to view the dashboard, export trip CSV and shift/KM/SOC CSV, or share a WhatsApp summary.
+### 5. Create users and trials
 
-## Access roles
+1. Log in as Admin using the `ADMIN_PIN` configured earlier.
+2. Open Users & PINs → Add user. Set a manual 4–10 digit PIN and role. For a driver or Value Champion, set the permitted Trial ID(s).
+3. Note the generated User ID displayed by the backend only if you inspect the API response; the user list shows the IDs in the table's trial scope but does not expose PINs.
+4. Open Trials → Create trial. Configure Trial ID, vehicle, customer, materials, target, battery capacity and plant stages. Add assigned driver and Value Champion User IDs if you use the explicit assignment lists.
+5. Provide the PIN directly to the user. If forgotten, Admin assigns a new PIN; the original cannot be recovered from the hash.
 
-- `admin`: creates trials/users, resets PINs, changes trial status, and views all trial dashboards.
-- `driver`: sees only the assigned trial and can record their own shifts.
-- `manager`: views all trial dashboards.
-- `utilization`: views all trial dashboards.
-- `value_champion`: views only the trials listed in their user record.
+## Script Properties and triggers
 
-Users can change their PIN from the signed-in screen. Admin can issue a new PIN if someone forgets it. For security, existing PINs cannot be read back; Admin resets them instead. If the Admin PIN itself is forgotten, update the `ADMIN_PIN` Script Property and run `setupAdmin()` again; it resets the existing admin PIN hash.
+- Required Script Property: `ADMIN_PIN` (4–10 digits; use 6+ for the pilot).
+- Required time-driven triggers: **none** in this version. Driver events sync from the PWA when the device reconnects, regains focus or the user taps Sync now. No MailApp or scheduled notification trigger is configured.
 
-## Security and licensing notes — read before field use
+## Data tabs
 
-- GitHub Pages hosting is free for public repositories and eligible plans; Google Apps Script and Sheets have usage quotas. This design aims for zero incremental cost, but Google Workspace policies and quotas apply.
-- The API uses JSONP GET requests to match the requested cross-origin architecture. This means request parameters, including PINs at login, may appear in browser history, proxy logs or service logs. The `Anyone` web app is also publicly reachable. PIN hashing and short-lived server sessions help, but do **not** make this equivalent to a properly authenticated enterprise API.
-- Use only non-sensitive trial operational data during the pilot. Do not put personal, confidential customer, commercially sensitive or regulated data into this prototype until Montra IT/security approves it.
-- For production, prefer an authenticated POST API with Microsoft Entra ID / an approved backend, or another organisation-approved identity layer. That may require tenant administrator involvement and potentially paid services.
-- The Excel + Power Automate route was not selected for this MVP because HTTP-trigger authentication/entitlement and concurrent Excel workbook writes need tenant-specific validation. It can be reconsidered if IT provides an approved API/authentication pattern and a concurrency-safe datastore.
-- Email summaries, WhatsApp API messaging, offline trip submission/synchronisation, GPS, photo uploads, bulk vehicle assignment and full admin trip-edit screens are not implemented in this MVP. WhatsApp sharing opens a pre-filled message; it does not send automatically.
+- `Trials` — trial portfolio, workflow, targets, battery details and outcome.
+- `Users` — role, trial scope, salted PIN hash and active status.
+- `Shifts` — shift opening/closing odometer, SOC, material, km and SOC used.
+- `Events` — timestamped event punches, GPS, correction reason and sync identifiers.
+- `Trips` — one record per trip, short trip number (`T-001`, restarting by shift), duration and closure reason.
+- `Audit` — admin/manager corrections and important actions.
+- `Charging` — charging start/end timestamps, before/after SOC, SOC added and GPS.
+- `TrialStages` — configured plant stages and event labels.
 
-## Validation checklist before field deployment
+## Offline behaviour and limitations
 
-- [ ] Set `API_URL` and confirm `health` responds (the page will surface API errors).
-- [ ] Run `initializeSheets`, `setupAdmin`, `testWriteReadRoundTrip` and `testTripCalculations`.
-- [ ] Create a sample trial with two drivers and issue PINs.
-- [ ] Sign in as each driver and verify that each sees only the assigned trial.
-- [ ] Open a shift and test `Loading In → Loading Out → Unloading In → Unloading Out → Loading In`; verify exactly one completed trip and a new open trip.
-- [ ] Test Charging with before/after SOC; verify trip closure and SOC gain.
-- [ ] Test Break; verify trip closure and that the next Loading In starts a new trip.
-- [ ] Test Shift End; verify trip closure, total kilometres and SOC used.
-- [ ] Test invalid event order, duplicate taps, manual event time, app reload during an open shift and date filters.
-- [ ] Verify dashboard combined results for both drivers/shifts and CSV exports.
-- [ ] Obtain Montra IT/security approval before inviting real field users.
+- The first app load and first successful login require connectivity.
+- After the app shell has been cached and a user has logged in successfully, the same device can reopen the saved active shift offline.
+- Each driver punch is stored in IndexedDB before GPS/network work. Sync occurs when connectivity is available.
+- GPS is best-effort: the browser/device must support geolocation, the app must be served over HTTPS, and the user must grant permission. If GPS is unavailable, the punch is still stored with blank coordinates.
+- Do not clear browser site data or uninstall the PWA while unsynchronised punches exist. Local browser storage is device-specific and is not a backup.
+- The current offline implementation queues punch events; admin setup, new user creation, trial creation and manager dashboard refresh require connectivity.
+- The browser may suspend background work. The queue syncs on reconnect, app focus and visibility change; it is not a guaranteed operating-system background service on every phone.
+
+## Important security / production warning
+
+This pilot retains the requested JSONP/GET Apps Script pattern. It is not suitable for confidential production deployment without a security review:
+
+- A public Apps Script Web App with `Anyone` access exposes an internet-reachable endpoint.
+- PINs and session tokens are sent as query-string payloads for JSONP calls; server/browser infrastructure may log URLs.
+- A four-digit PIN has low entropy. Use at least six digits for a pilot and avoid reusing employee or personal PINs.
+- PIN hashes are not plaintext/recoverable; Admin resets a forgotten PIN instead of reading it.
+- Location coordinates are sensitive operational data. Obtain company approval and inform drivers before collection.
+- For production, replace JSONP with an authenticated API using an approved identity provider (for example Microsoft Entra ID) and an access-controlled database. This may require IT configuration and/or paid Microsoft/Azure licensing.
+
+## Cost and service requirements
+
+The pilot uses GitHub Pages and Google Apps Script/Sheets without a paid hosting service. It is intended to fit within the standard free service quotas for a small trial pilot. Google Workspace account policies, Apps Script quotas, storage growth and request volume still apply. No SMS/WhatsApp API or paid notification service is included. The WhatsApp button opens the user's WhatsApp share composer.
+
+## Validation performed in this package
+
+- JavaScript syntax check of `index.html` inline script using Node.js.
+- JavaScript syntax check of `Code.gs` using Node.js parser (Apps Script services are not executed by Node).
+- Local logic tests for trip boundaries, optional event skipping, charging SOC arithmetic, energy efficiency arithmetic and plant dwell/movement calculations.
+- ZIP integrity test.
+
+Not performed: deployment to your Google account, Apps Script live execution, actual phone GPS testing, multi-user live concurrency testing, or a live Google Sheets write/read round trip. Run the two Apps Script test functions in your own project after initialising the sheets.

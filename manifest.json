@@ -1,15 +1,15 @@
 {
   "name": "Montra Trial Management System",
   "short_name": "Montra TMS",
-  "description": "Montra Electric trial trip recording and management",
+  "description": "Montra Electric trial operations and trip tracking",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#f5f6f8",
-  "theme_color": "#c9232b",
+  "background_color": "#F4F5F6",
+  "theme_color": "#D6001C",
   "icons": [
-    {"src":"icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
-    {"src":"icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
+    {"src":"assets/icon-192.png","sizes":"192x192","type":"image/png","purpose":"any maskable"},
+    {"src":"assets/icon-512.png","sizes":"512x512","type":"image/png","purpose":"any maskable"}
   ]
 }
