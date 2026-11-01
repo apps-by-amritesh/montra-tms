@@ -1,4 +1,4 @@
-# MONTRA Trial Management System — Version 2.0 Pilot
+# MONTRA Trial Management System — Version 2.1.0 Pilot
 
 A mobile-first, installable PWA for Montra Electric field trials. The app is designed for GitHub Pages hosting with Google Sheets + Google Apps Script as the initial backend.
 
@@ -16,9 +16,9 @@ A mobile-first, installable PWA for Montra Electric field trials. The app is des
 - `icon-192.png`, `icon-512.png` — duplicate root-level icon files for convenience.
 - `tests/logic-tests.js` — local calculation/state tests.
 
-## Version 2.0 changes
+## Version 2.1.0 changes
 
-1. PINs accept 4–10 digits. Admin enters the PIN when creating a user or assigning a replacement PIN; PINs are stored as salted hashes, not recoverable plaintext.
+1. PINs accept 4–10 digits. Admin enters the PIN when creating a user or assigning a replacement PIN; PINs are stored as salted hashes, not recoverable plaintext. A separate keyed PIN fingerprint (using Script Property `PIN_PEPPER`) is used to enforce uniqueness.
 2. Admin workspace is divided into Overview, Trials, Users & PINs, Live Operations, Reports and Settings.
 3. Driver interface has English/Hindi toggle, large event buttons, a highlighted next event, trip count, vehicle, shift and material context.
 4. A trial can define up to 8 plant stages with custom In/Out event names and Hindi labels. Optional events can be skipped; a new first-stage In closes the previous trip and starts the next one.
@@ -33,6 +33,14 @@ A mobile-first, installable PWA for Montra Electric field trials. The app is des
 13. Battery capacity (kWh) is configured at trial creation; battery SOH is entered at trial conclusion. The estimate is: `Energy kWh = SOC percentage-points used / 100 × nominal battery capacity × SOH / 100`; `Efficiency = total km / estimated kWh`.
 14. Excel export is a formatted multi-worksheet Excel SpreadsheetML workbook (`.xls` XML). Open it in Excel and use Save As → `.xlsx` if the modern XLSX format is required.
 15. Backend fields are reserved for per-trip earnings and incentives, but the feature is disabled by default.
+16. Admin can edit user profiles, deactivate accounts, reset PINs, and prepare WhatsApp welcome/reset messages with the app link and PIN for manual sending.
+17. Driver and Value Champion assignment is performed from the trial profile using selectable user checklists. User creation no longer requests trial assignments. Manager and Utilization trial scope remains in the user profile.
+18. Trial profile edits include driver and Value Champion assignment changes while the trial is ongoing.
+19. Dashboard portfolio metric cards are shown only on Overview; other tabs show only their own workspace content. Mobile layout is constrained to the device viewport with horizontal scrolling contained inside data tables.
+20. Driver start includes an explicit no-assignment recovery screen with Refresh and Sign out. Active driver screens include Sign out; completed shifts include Start another shift and Sign out.
+21. If a driver starts a shift offline, the local shift-start record is queued and sent before that shift's punches. A second shift is held until the pending offline shift start has synchronised, preventing a second shift from overwriting the pending start record.
+22. PWA update handling uses a versioned service-worker cache, network-first navigation, an update check, and a safe app-cache purge. Cache purge never deletes IndexedDB operational data and is blocked while a shift start or punches remain pending.
+23. PWA icons use a white background, Montra-red eagle mark and the label “MONTRA TMS”.
 
 ## Branding
 
@@ -44,7 +52,7 @@ The supplied brand guide specifies:
 - White: `#FFFFFF`
 - Aero headline typeface; Arial / Calibri secondary fallback.
 
-The interface uses the supplied logo in a steel-grey logo panel, red primary actions and restrained grey surfaces. The app icon uses the supplied eagle picture mark; the supplied logo artwork is not distorted or recoloured.
+The interface uses the supplied logo in a steel-grey logo panel, red primary actions and restrained grey surfaces. The app icon uses the supplied eagle mark recoloured in Montra red on white, with “MONTRA TMS” embedded below the mark. The header logo artwork is kept separate from the app icon.
 
 ## Setup — Google Sheets + Apps Script
 
@@ -86,13 +94,23 @@ The interface uses the supplied logo in a steel-grey logo panel, red primary act
 1. Log in as Admin using the `ADMIN_PIN` configured earlier.
 2. Open Users & PINs → Add user. Set a manual 4–10 digit PIN and role. For a driver or Value Champion, set the permitted Trial ID(s).
 3. Note the generated User ID displayed by the backend only if you inspect the API response; the user list shows the IDs in the table's trial scope but does not expose PINs.
-4. Open Trials → Create trial. Configure Trial ID, vehicle, customer, materials, target, battery capacity and plant stages. Add assigned driver and Value Champion User IDs if you use the explicit assignment lists.
+4. Open Trials → Create trial. Configure Trial ID, vehicle, customer, materials, combined daily trip target, battery capacity and plant stages. Select assigned driver and Value Champion profiles from the checklist.
 5. Provide the PIN directly to the user. If forgotten, Admin assigns a new PIN; the original cannot be recovered from the hash.
 
 ## Script Properties and triggers
 
 - Required Script Property: `ADMIN_PIN` (4–10 digits; use 6+ for the pilot).
+- `PIN_PEPPER` is generated and stored automatically by the backend on first PIN fingerprint creation. Do not delete or change it after users have been created; doing so would invalidate duplicate-PIN checks.
+- Existing users created by earlier V2 builds have no `PINFingerprint`. Admin must reset each legacy user's PIN once. The Users & PINs table marks these accounts “Reset PIN for uniqueness”. Once all active legacy users are reset, new account creation enforces PIN uniqueness across the migrated directory. During the one-time migration, choose replacement PINs carefully because the old plaintext PINs cannot be recovered or compared.
 - Required time-driven triggers: **none** in this version. Driver events sync from the PWA when the device reconnects, regains focus or the user taps Sync now. No MailApp or scheduled notification trigger is configured.
+
+## Updating the PWA
+
+- Each release increments `APP_VERSION` in `sw.js` and the displayed app version in `index.html` / this README.
+- The service worker fetches navigations from the network first, then falls back to the cached shell offline.
+- In Admin → Settings, use **Check for app updates** after a new GitHub Pages release. Approve the update and allow the app to reload.
+- **Clear cached app files safely** only clears Cache Storage. It does not delete IndexedDB operational data. The action is blocked while punches or an offline shift start remain pending sync.
+- On iOS, if an installed Home Screen app continues to show an old build, open the GitHub Pages URL in Safari once, allow it to refresh, then reopen the installed app. Do not clear Safari website data while unsynced events exist.
 
 ## Data tabs
 
@@ -138,3 +156,24 @@ The pilot uses GitHub Pages and Google Apps Script/Sheets without a paid hosting
 - ZIP integrity test.
 
 Not performed: deployment to your Google account, Apps Script live execution, actual phone GPS testing, multi-user live concurrency testing, or a live Google Sheets write/read round trip. Run the two Apps Script test functions in your own project after initialising the sheets.
+
+## Troubleshooting: “Can't find variable: endpoint”
+
+If the login screen shows `Can't find variable: endpoint`, replace `index.html` with the corrected file from the latest package. The API helper must use the configured `API_URL` (or the locally saved URL); older copies referenced an undefined variable named `endpoint`. After uploading the corrected frontend, hard-refresh the browser or close and reopen the installed PWA so the updated service-worker cache is activated.
+
+The Apps Script URL must be the deployed Web App URL ending in `/exec`, not the Apps Script editor URL.
+
+
+
+## Version 2.2.0 release notes
+
+- Location capture is GPS-first. If GPS is unavailable or permission is denied, the user is prompted to enable location and can continue by entering the plant/site location manually. The record explicitly stores whether the location came from GPS or manual entry; coordinates are never fabricated.
+- Operational entries and administrative changes retain browser/device metadata, timestamps, and available GPS/manual location details in the Events, Shifts, Charging, and Audit sheets.
+- Admin Settings includes controls to load synthetic dashboard test data and delete only rows tagged `IsDemo=YES`. Demo rows are clearly labelled and do not contain fabricated GPS coordinates.
+- Driver trip-punch and utility actions are placed before supporting shift details and event history.
+- Form controls use a 16px minimum font size to prevent iOS Safari focus zoom.
+- Buttons show immediate progress feedback while asynchronous work is underway.
+- The app header uses the full original Montra SVG logo; the launch/login brand uses a TMS mark with faint truck silhouettes and the two-line title “Montra Electric” / “Trial Management System”.
+
+### Backend deployment note
+Deploy the included `Code.gs` as the Apps Script Web App and initialize sheets from the Admin/Apps Script setup before publishing the updated frontend. Existing sheets are extended with new metadata columns; existing operational rows are preserved. Do not deploy only `index.html`, because location metadata, audit capture, and demo-data controls require the updated backend.
