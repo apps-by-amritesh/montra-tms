@@ -54,63 +54,6 @@ The supplied brand guide specifies:
 
 The interface uses the supplied logo in a steel-grey logo panel, red primary actions and restrained grey surfaces. The app icon uses the supplied eagle mark recoloured in Montra red on white, with “MONTRA TMS” embedded below the mark. The header logo artwork is kept separate from the app icon.
 
-## Setup — Google Sheets + Apps Script
-
-### 1. Create the database
-
-1. Create a Google Sheet named `Montra TMS Database`.
-2. Open Extensions → Apps Script.
-3. In Project Settings, enable **Show `appsscript.json` manifest file in editor**.
-4. Replace the manifest with the contents of this package's `appsscript.json` (this sets `runtimeVersion` to `V8`).
-5. Replace `Code.gs` with this package's `Code.gs`.
-6. Save.
-
-### 2. Initialise sheets and admin
-
-1. Run `initializeSheets()` once. It creates the tabs and adds missing columns without deleting existing rows.
-2. In Apps Script → Project Settings → Script Properties, add `ADMIN_PIN` with a 4–10 digit PIN you choose. For security, prefer 6 or more digits even though 4 is supported.
-3. Run `setupAdmin()` once. It creates or resets the admin account using the Script Property.
-4. Run `testWriteReadRoundTrip()`; expected result: `PASS: Sheet write/read round trip.`
-5. Run `testTripCalculations()`; expected result: `PASS: SOC calculation = 130 percentage points.`
-
-### 3. Deploy the API
-
-1. Deploy → New deployment → Web app.
-2. Execute as: **Me**.
-3. Access: **Anyone** only if Montra IT/security approves this pilot architecture.
-4. Deploy and copy the Web App URL ending in `/exec`.
-
-### 4. Configure the PWA
-
-1. Open `index.html` in a code editor.
-2. At the top of the script, replace `PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE` in `API_URL` with the deployed `/exec` URL.
-3. Upload the complete contents of this folder to the root of a GitHub repository, preserving the `assets/` folder.
-4. In GitHub → Settings → Pages, deploy from the main branch and root folder.
-5. Open the resulting `https://<account>.github.io/<repo>/` URL on the phone.
-6. Allow location access if event GPS is required. Install the PWA from the browser's Install / Add to Home Screen option.
-
-### 5. Create users and trials
-
-1. Log in as Admin using the `ADMIN_PIN` configured earlier.
-2. Open Users & PINs → Add user. Set a manual 4–10 digit PIN and role. For a driver or Value Champion, set the permitted Trial ID(s).
-3. Note the generated User ID displayed by the backend only if you inspect the API response; the user list shows the IDs in the table's trial scope but does not expose PINs.
-4. Open Trials → Create trial. Configure Trial ID, vehicle, customer, materials, combined daily trip target, battery capacity and plant stages. Select assigned driver and Value Champion profiles from the checklist.
-5. Provide the PIN directly to the user. If forgotten, Admin assigns a new PIN; the original cannot be recovered from the hash.
-
-## Script Properties and triggers
-
-- Required Script Property: `ADMIN_PIN` (4–10 digits; use 6+ for the pilot).
-- `PIN_PEPPER` is generated and stored automatically by the backend on first PIN fingerprint creation. Do not delete or change it after users have been created; doing so would invalidate duplicate-PIN checks.
-- Existing users created by earlier V2 builds have no `PINFingerprint`. Admin must reset each legacy user's PIN once. The Users & PINs table marks these accounts “Reset PIN for uniqueness”. Once all active legacy users are reset, new account creation enforces PIN uniqueness across the migrated directory. During the one-time migration, choose replacement PINs carefully because the old plaintext PINs cannot be recovered or compared.
-- Required time-driven triggers: **none** in this version. Driver events sync from the PWA when the device reconnects, regains focus or the user taps Sync now. No MailApp or scheduled notification trigger is configured.
-
-## Updating the PWA
-
-- Each release increments `APP_VERSION` in `sw.js` and the displayed app version in `index.html` / this README.
-- The service worker fetches navigations from the network first, then falls back to the cached shell offline.
-- In Admin → Settings, use **Check for app updates** after a new GitHub Pages release. Approve the update and allow the app to reload.
-- **Clear cached app files safely** only clears Cache Storage. It does not delete IndexedDB operational data. The action is blocked while punches or an offline shift start remain pending sync.
-- On iOS, if an installed Home Screen app continues to show an old build, open the GitHub Pages URL in Safari once, allow it to refresh, then reopen the installed app. Do not clear Safari website data while unsynced events exist.
 
 ## Data tabs
 
