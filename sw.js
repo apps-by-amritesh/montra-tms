@@ -1,5 +1,5 @@
-/* Montra TMS service worker — release 2.2.0 */
-const APP_VERSION = '2.2.0';
+/* Montra TMS service worker — release 2.2.1 */
+const APP_VERSION = '2.2.1';
 const CACHE_NAME = 'montra-tms-shell-' + APP_VERSION;
 const APP_SHELL = [
   './', './index.html', './manifest.json',
